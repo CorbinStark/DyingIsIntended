@@ -3,11 +3,11 @@
 ## Gameplay
 
 ### Skeletons exist!
-![Skelly](https://github.com/CorbinStark/Defend-Your-Bounty/blob/master/Previews/skelly.png)
+![Skelly](https://github.com/CorbinStark/Defend-Your-Bounty/blob/master/previews/skelly.png)
 
 ### Don't get hit
-![bullets](https://github.com/CorbinStark/Defend-Your-Bounty/blob/master/Previews/bullets.png)
-![bullets2](https://github.com/CorbinStark/Defend-Your-Bounty/blob/master/Previews/bullets2.png)
+![bullets](https://github.com/CorbinStark/Defend-Your-Bounty/blob/master/previews/bullets.png)
+![bullets2](https://github.com/CorbinStark/Defend-Your-Bounty/blob/master/previews/bullets2.png)
 
 ## Credits
 
