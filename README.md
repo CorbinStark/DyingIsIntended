@@ -1,4 +1,5 @@
 # Dying Is Intended
+Dying is only a temporary setback. Your ghosts will help you proceed in your next life.
 
 ## Gameplay
 
