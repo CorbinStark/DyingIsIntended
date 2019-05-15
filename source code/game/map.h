@@ -15,8 +15,9 @@ const i32 TILE_SIZE = 16;
 const i32 TILESET_WIDTH = 5;
 const i32 SCROLL_SPEED = 4;
 
-const f32 HITBOX = 7;
+const f32 HITBOX = 5;
 const f32 GRAVITY = 0.25;
+const f32 SLOW_GRAVITY = 0.25/2;
 const f32 MAX_SPEED = 2;
 const f32 MAX_FORCE = 1.0;
 const f32 SCALING_FACTOR = (1/15.0f);
@@ -29,6 +30,7 @@ enum UnitState {
     UNIT_IDLE,
     UNIT_WALKING,
     UNIT_JUMPING,
+    UNIT_FLYING,
     UNIT_DEAD
 };
 
@@ -51,7 +53,10 @@ struct Unit {
     std::vector<KeyPress> keypresses; //save key presses for future runs
     UnitState state;
     UnitColor color;
+    i32 flytime;
+    i32 bombs;
     bool right;
+    bool slow;
 
     Animation blueidle;
     Animation bluewalk;
@@ -84,6 +89,7 @@ struct Map {
 static inline
 Unit create_unit(Texture unitsheet) {
     Unit unit = {0};
+    unit.bombs = 1;
     unit.state = UNIT_IDLE;
 
     unit.blueidle = create_animation(unitsheet, 1, 0, 16, 16, 15);

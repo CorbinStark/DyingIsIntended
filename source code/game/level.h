@@ -10,6 +10,7 @@
 //
 
 struct Enemy;
+struct Emitter;
 struct Bullet {
     vec2 pos;
     i32 timer;
@@ -17,15 +18,16 @@ struct Bullet {
     f32 speed;
     Texture img;
     Enemy* parent;
-    void(*f)(Bullet* b); //function for bullet position
+    void(*f)(Bullet* b, Emitter* e, i32 i); //function for bullet position
 };
 
 struct Emitter {
     i32 numBullets;
     f32 spread; //a measure of how spread out the spread shot will be
+    f32 angle;
     i32 shootdelay;
     f32 speed;
-    void(*f)(Bullet* b); //function for the algorithm
+    void(*f)(Bullet* b, Emitter* e, i32 i); //function for the algorithm
 };
 
 struct Enemy {
@@ -49,12 +51,26 @@ vec2 calculate_seek(vec2 dest, Enemy* unit) {
 //   LEVEL
 //
 
+struct Explosion {
+    vec2 pos;
+    f32 scale;
+};
+
+enum ScrollDir {
+    SCROLL_LEFT,
+    SCROLL_RIGHT,
+    SCROLL_UP,
+    SCROLL_DOWN
+};
+
 struct LevelScene;
 #define MAX_BULLETS 5000
 struct Level {
     Map map;
+    ScrollDir scroll;
     std::vector<Enemy> enemies;
     std::vector<Unit> units;
+    std::vector<Explosion> explosions;
     Bullet bullets[MAX_BULLETS];
     u16 numBullets;
     i32 timer;
@@ -71,6 +87,8 @@ struct LevelScene {
     Texture fairy;
     Texture unit;
     Texture skelly;
+    Texture explosion;
+    Texture heart;
 };
 
 static inline
@@ -85,6 +103,8 @@ LevelScene load_level_scene() {
     scene.tileset = load_texture("data/art/tileset.png", GL_NEAREST);
     scene.fairy = load_texture("data/art/fairy.png", GL_NEAREST);
     scene.skelly = load_texture("data/art/skelly.png", GL_NEAREST);
+    scene.explosion = load_texture("data/art/explosion.png", GL_NEAREST);
+    scene.heart = load_texture("data/art/heart.png", GL_NEAREST);
 
     scene.unit = load_texture("data/art/unit.png", GL_NEAREST);
 
@@ -92,7 +112,7 @@ LevelScene load_level_scene() {
 }
 
 static inline
-void draw_unit(RenderBatch* batch, Level* level, Unit* unit) {
+void draw_unit(RenderBatch* batch, Level* level, LevelScene* scene, Unit* unit) {
     i32 unitx = (i32)unit->pos.x;
     i32 unity = (i32)unit->pos.y;
 
@@ -149,58 +169,86 @@ void draw_unit(RenderBatch* batch, Level* level, Unit* unit) {
             draw_animation(batch, unit->yellowdead, unitx + level->map.x, unity + level->map.y, unit->right);
         }
     }
+
+    if(unit->slow) 
+        draw_texture(batch, scene->heart, unitx + (i32)(TILE_SIZE/2) - (i32)(scene->heart.width/2) + level->map.x, unity + (i32)(TILE_SIZE/2) + level->map.y);
 }
 
 static inline
-void update_unit(Unit* unit, Level* level, Map* map) {
-    unit->velocity.y += GRAVITY;
+void explode(Unit* unit, Level* level) {
+    level->explosions.push_back({{unit->pos.x, unit->pos.y}, 0});
+    for(u32 i = 0; i < level->numBullets; ++i) {
+        if(getDistanceE((level->bullets[i].pos.x + level->bullets[i].img.width/2), (level->bullets[i].pos.y + level->bullets[i].img.height/2), (unit->pos.x + TILE_SIZE/2), (unit->pos.y + TILE_SIZE/2)) <= 64*2) {
+            level->bullets[i] = level->bullets[level->numBullets-1];
+            level->numBullets--;
+            i--;
+        }
+    }
+}
+
+static inline
+void update_unit(Unit* unit, Level* level, Map* map, LevelScene* scene) {
+    if(unit->slow)
+        unit->velocity.y += SLOW_GRAVITY;
+    else
+        unit->velocity.y += GRAVITY;
 
     if(unit->velocity.y > MAX_SPEED)
         unit->velocity.y = MAX_SPEED;
 
-    i32 tilex = (i32)(unit->pos.x + unit->velocity.x) / TILE_SIZE;
-    i32 tiley = (i32)(unit->pos.y + unit->velocity.y) / TILE_SIZE;
+    i32 tilex = (i32)(unit->pos.x) / TILE_SIZE;
+    i32 tiley = (i32)(unit->pos.y) / TILE_SIZE;
+    i32 tilex2 =(i32)(unit->pos.x+TILE_SIZE-2) / TILE_SIZE;
+    i32 tiley2 =(i32)(unit->pos.y+TILE_SIZE-2) / TILE_SIZE;
 
     bool leftcollide = unit->velocity.x > 0 && is_ground(map->grid[(tilex+1) + tiley * map->width]);
     bool rightcollide = unit->velocity.x < 0 && is_ground(map->grid[(tilex) + tiley * map->width]);
 
-    if((is_ground(map->grid[tilex + (tiley+1) * map->width]) || is_floating_ground(map->grid[tilex + (tiley+1) * map->width]) || is_ground(map->grid[(tilex+1) + (tiley+1) * map->width]) || is_floating_ground(map->grid[(tilex+1) + (tiley+1) * map->width])) && unit->velocity.y > 0) {
-        if(unit->state == UNIT_JUMPING)
-            unit->state = UNIT_IDLE;
-        unit->pos.y = (tiley * TILE_SIZE);
-        unit->velocity.y = 0;
-
-        if(unit->velocity.x != 0)
-            unit->state = UNIT_WALKING;
+    if(unit->state != UNIT_DEAD) {
+        if(leftcollide) {
+            unit->pos.x = (tilex * TILE_SIZE);
+        }
+        else if(rightcollide) {
+            unit->pos.x = ((tilex+1) * TILE_SIZE);
+        }
+        else
+            unit->pos.x += unit->velocity.x;
     }
-    if(map->grid[tilex + (tiley+1) * map->width] == 3 + 2 * TILESET_WIDTH) {
+
+    if((is_ground(map->grid[tilex + (tiley+1) * map->width]) || is_ground(map->grid[tilex2 + (tiley+1) * map->width]) || is_floating_ground(map->grid[tilex + (tiley+1) * map->width]) || is_floating_ground(map->grid[(tilex+1) + (tiley+1) * map->width])) && unit->velocity.y > 0) {
+        Rect cbox = {unit->pos.x + 2, unit->pos.y + 2, 16, 16};
+        Rect tile = {tilex * TILE_SIZE, tiley * TILE_SIZE, 16, 16};
+
+        if(colliding(cbox, tile)) {
+            if(unit->state == UNIT_JUMPING)
+                unit->state = UNIT_IDLE;
+            unit->pos.y = (tiley * TILE_SIZE);
+            unit->velocity.y = 0;
+
+            if(unit->velocity.x != 0)
+                unit->state = UNIT_WALKING;
+        }
+    }
+    if(map->grid[tilex + (tiley) * map->width] == 3 + 2 * TILESET_WIDTH && unit->state != UNIT_DEAD) {
         unit->state = UNIT_DEAD;
         unit->velocity = {0};
+        explode(unit, level);
     }
 
-    if((is_ground(map->grid[tilex + (tiley) * map->width]) || is_ground(map->grid[(tilex+1) + (tiley) * map->width])) && unit->velocity.y < 0) {
+    if((is_ground(map->grid[tilex + (tiley) * map->width])) && unit->velocity.y < 0) {
         unit->velocity.y = 0;
     }
-
-    if(leftcollide) {
-        unit->pos.x = (tilex * TILE_SIZE);
-    }
-    else if(rightcollide) {
-        unit->pos.x = ((tilex+1) * TILE_SIZE);
-    } else
-        unit->pos.x += unit->velocity.x;
 
     unit->pos.y += unit->velocity.y;
 
     //BULLET COLLISIONS
     for(u32 i = 0; i < level->numBullets; ++i) {
-        if(getDistanceE(level->bullets[i].pos.x, level->bullets[i].pos.y, unit->pos.x, unit->pos.y) <= HITBOX && unit->state != UNIT_DEAD) {
+        if(getDistanceE((level->bullets[i].pos.x + level->bullets[i].img.width/2), (level->bullets[i].pos.y + level->bullets[i].img.height/2), (unit->pos.x + TILE_SIZE/2), (unit->pos.y + TILE_SIZE/2)) <= HITBOX && unit->state != UNIT_DEAD) {
             //swap the last bullet with this one then remove the last
-            level->bullets[i] = level->bullets[level->numBullets-1];
-            level->numBullets--;
-            i--;
+            explode(unit, level);
             unit->state = UNIT_DEAD;
             unit->velocity = {0};
+            break;
         }
     }
 }
@@ -217,7 +265,7 @@ void player_input(Unit* player, Level* level) {
             player->state = UNIT_WALKING;
         add_keypress(player, level->timer, KEY_LEFT, true);
         player->right = false;
-        player->velocity.x = -2;
+        player->velocity.x = player->slow ? -1 : -2;
     }
     if(is_key_released(KEY_LEFT)) {
         if(player->velocity.x < 0)
@@ -231,7 +279,7 @@ void player_input(Unit* player, Level* level) {
             player->state = UNIT_WALKING;
         add_keypress(player, level->timer, KEY_RIGHT, true);
         player->right = true;
-        player->velocity.x = 2;
+        player->velocity.x = player->slow ? 1 : 2;
     }
     if(is_key_released(KEY_RIGHT)) {
         if(player->velocity.x > 0)
@@ -243,21 +291,59 @@ void player_input(Unit* player, Level* level) {
 
     if(is_key_pressed(KEY_UP) || is_key_pressed(KEY_Z) || is_key_pressed(KEY_SPACE)) {
         if(player->state != UNIT_JUMPING) {
-            level->units.back().velocity.y = -5;
+            level->units.back().velocity.y = player->slow ? -3 : -5;
             level->units.back().state = UNIT_JUMPING;
             add_keypress(player, level->timer, KEY_UP, true);
+        }
+    }
+
+    i32 tilex = (i32)(player->pos.x) / TILE_SIZE;
+    i32 tiley = (i32)(player->pos.y) / TILE_SIZE;
+    if(is_key_pressed(KEY_DOWN)) {
+        if(is_floating_ground(level->map.grid[tilex + (tiley+1) * level->map.width])) {
+            player->pos.y += 14;
+            player->velocity.y = 12;
+            add_keypress(player, level->timer, KEY_DOWN, true);
+        }
+    }
+    if(is_key_pressed(KEY_LEFT_SHIFT)) {
+        player->slow = true;
+            if(player->velocity.x < 0)
+                player->velocity.x = -1;
+            else if(player->velocity.x > 0)
+                player->velocity.x = 1;
+        add_keypress(player, level->timer, KEY_LEFT_SHIFT, true);
+    }
+    if(is_key_released(KEY_LEFT_SHIFT)) {
+        player->slow = false;
+            if(player->velocity.x < 0)
+                player->velocity.x = -2;
+            else if(player->velocity.x > 0)
+                player->velocity.x = 2;
+        add_keypress(player, level->timer, KEY_LEFT_SHIFT, false);
+    }
+    if(is_key_pressed(KEY_C)) {
+        if(player->bombs > 0) {
+            explode(player, level);
+            add_keypress(player, level->timer, KEY_C, true);
+            player->bombs--;
+            player->flytime = 500;
+            //player->state = UNIT_FLYING;
         }
     }
 }
 
 static inline
-void ai_input(Unit* curr, i32 key, bool press) {
+void ai_input(Unit* curr, Level* level, i32 key, bool press) {
+    if(curr->state == UNIT_DEAD) 
+        return;
+
     if(key == KEY_LEFT) {
         if(press) {
             if(curr->state == UNIT_IDLE)
                 curr->state = UNIT_WALKING;
             curr->right = false;
-            curr->velocity.x = -2;
+            curr->velocity.x = curr->slow ? -1 : -2;
         } else {
             if(curr->velocity.x < 0)
                 curr->velocity.x = 0;
@@ -270,7 +356,7 @@ void ai_input(Unit* curr, i32 key, bool press) {
             if(curr->state == UNIT_IDLE)
                 curr->state = UNIT_WALKING;
             curr->right = true;
-            curr->velocity.x = 2;
+            curr->velocity.x = curr->slow ? 1 : 2;
         } else {
             if(curr->velocity.x > 0)
                 curr->velocity.x = 0;
@@ -280,10 +366,40 @@ void ai_input(Unit* curr, i32 key, bool press) {
     }
     if(key == KEY_UP) {
         if(curr->state != UNIT_JUMPING) {
-            curr->velocity.y = -5;
+            curr->velocity.y = curr->slow ? -3 : -5;
             curr->state = UNIT_JUMPING;
         }
     }
+    if(key == KEY_DOWN) {
+        curr->pos.y += 14;
+        curr->velocity.y = 12;
+    }
+    if(key == KEY_LEFT_SHIFT) {
+        if(press) {
+            if(curr->velocity.x < 0)
+                curr->velocity.x = -1;
+            else if(curr->velocity.x > 0)
+                curr->velocity.x = 1;
+
+            curr->slow = true;
+        } else {
+            if(curr->velocity.x < 0)
+                curr->velocity.x = -2;
+            else if(curr->velocity.x > 0)
+                curr->velocity.x = 2;
+            curr->slow = false;
+        }
+    }
+    if(key == KEY_C) {
+        if(curr->bombs > 0) {
+            explode(curr, level);
+            curr->bombs--;
+            curr->flytime = 500;
+            //curr->state = UNIT_FLYING;
+        }
+    }
+    if(key == KEY_ESCAPE)
+        curr->state = UNIT_DEAD;
 }
 
 static inline
@@ -300,6 +416,7 @@ static inline
 void reset_level(Level* level, LevelScene* scene) {
     level->numBullets = 0;
     level->enemies.clear();
+    level->explosions.clear();
     level->map.x = 0;
     level->map.y = -30;
     Unit unit = create_unit(scene->unit);
@@ -334,13 +451,21 @@ void level(RenderBatch* batch, Level* level, LevelScene* scene) {
 
     Unit* player = &level->units.back();
     if(player->state == UNIT_DEAD) {
+        add_keypress(player, level->timer, KEY_ESCAPE, false);
         reset_level(level, scene);
         if(level->init != NULL)
             level->init(level, scene);
         return;
     }
 
-    level->map.x -= 0.25f;
+    if(level->scroll == SCROLL_RIGHT)
+        level->map.x -= 0.25f;
+    if(level->scroll == SCROLL_LEFT)
+        level->map.x += 0.25f;
+
+    if(player->pos.x < -level->map.x - 50) {
+        player->state = UNIT_DEAD;
+    }
 
     for(u32 i = 0; i < level->enemies.size(); ++i) {
         Enemy* curr = &level->enemies[i];
@@ -364,7 +489,7 @@ void level(RenderBatch* batch, Level* level, LevelScene* scene) {
             }
             else {
                 if(level->timer % curr->emitter.shootdelay == 0) {
-                    f32 angle = 0;
+                    f32 angle = curr->emitter.angle;
                     for(u32 j = 0; j < curr->emitter.numBullets; ++j) {
                         Bullet bullet = {0};
                         bullet.pos = {curr->pos.x + (curr->img.width/2), curr->pos.y + (curr->img.height/2)};
@@ -387,17 +512,32 @@ void level(RenderBatch* batch, Level* level, LevelScene* scene) {
 
     player_input(player, level);
 
+    for(u32 i = 0; i < level->explosions.size(); ++i) {
+        level->explosions[i].scale += 0.1f;
+        scene->explosion.width *= level->explosions[i].scale;
+        scene->explosion.height *= level->explosions[i].scale;
+        draw_texture(batch, scene->explosion, level->explosions[i].pos.x + (TILE_SIZE/2) - ((scene->explosion.width)/2) + level->map.x, level->explosions[i].pos.y + (TILE_SIZE/2) - ((scene->explosion.height)/2) + level->map.y, {1, 1, 1, 1-(level->explosions[i].scale/3)});
+        scene->explosion.width = 64;
+        scene->explosion.height = 64;
+
+        if(level->explosions[i].scale >= 3) {
+            level->explosions.erase(level->explosions.begin() + i);
+            i--;
+            continue;
+        }
+    }
+
     for(u32 i = 0; i < level->units.size(); ++i) {
         Unit* unit = &level->units[i];
-        draw_unit(batch, level, unit);
-        update_unit(unit, level, &level->map);
+        draw_unit(batch, level, scene, unit);
+        update_unit(unit, level, &level->map, scene);
 
         if(unit != player) {
             //every unit other than the player
             for(u32 j = 0; j < unit->keypresses.size(); ++j) {
                 KeyPress* key = &unit->keypresses[j];
                 if(level->timer == key->time) {
-                    ai_input(unit, key->key, key->press);
+                    ai_input(unit, level, key->key, key->press);
                 }
             }
         }
@@ -408,7 +548,7 @@ void level(RenderBatch* batch, Level* level, LevelScene* scene) {
         curr->timer++;
         draw_texture(batch, curr->img, curr->pos.x + level->map.x, curr->pos.y + level->map.y);
         if(curr->parent->active && curr->f != NULL)
-            curr->f(curr);
+            curr->f(curr, &curr->parent->emitter, i);
         curr->pos.x += cos(deg_to_rad(curr->angle))*curr->speed;
         curr->pos.y += sin(deg_to_rad(curr->angle))*curr->speed;
 

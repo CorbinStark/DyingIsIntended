@@ -79,6 +79,7 @@ int main() {
     levelscene = load_level_scene();
     Level game = {0};
     game.map = load_map("data/map.txt");
+    game.scroll = SCROLL_RIGHT;
     game.map.y = -30;
     game.init = stage1;
 
