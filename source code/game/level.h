@@ -64,9 +64,10 @@ enum ScrollDir {
 };
 
 struct LevelScene;
-#define MAX_BULLETS 5000
+#define MAX_BULLETS 1000
 struct Level {
     Map map;
+    bool pause;
     ScrollDir scroll;
     std::vector<Enemy> enemies;
     std::vector<Unit> units;
@@ -197,7 +198,7 @@ void update_unit(Unit* unit, Level* level, Map* map, LevelScene* scene) {
         unit->velocity.y = MAX_SPEED;
 
     i32 tilex = (i32)(unit->pos.x) / TILE_SIZE;
-    i32 tiley = (i32)(unit->pos.y) / TILE_SIZE;
+    i32 tiley = (i32)(unit->pos.y + unit->velocity.y) / TILE_SIZE;
     i32 tilex2 =(i32)(unit->pos.x+TILE_SIZE-2) / TILE_SIZE;
     i32 tiley2 =(i32)(unit->pos.y+TILE_SIZE-2) / TILE_SIZE;
 
@@ -216,10 +217,6 @@ void update_unit(Unit* unit, Level* level, Map* map, LevelScene* scene) {
     }
 
     if((is_ground(map->grid[tilex + (tiley+1) * map->width]) || is_ground(map->grid[tilex2 + (tiley+1) * map->width]) || is_floating_ground(map->grid[tilex + (tiley+1) * map->width]) || is_floating_ground(map->grid[(tilex+1) + (tiley+1) * map->width])) && unit->velocity.y > 0) {
-        Rect cbox = {unit->pos.x + 2, unit->pos.y + 2, 16, 16};
-        Rect tile = {tilex * TILE_SIZE, tiley * TILE_SIZE, 16, 16};
-
-        if(colliding(cbox, tile)) {
             if(unit->state == UNIT_JUMPING)
                 unit->state = UNIT_IDLE;
             unit->pos.y = (tiley * TILE_SIZE);
@@ -227,16 +224,22 @@ void update_unit(Unit* unit, Level* level, Map* map, LevelScene* scene) {
 
             if(unit->velocity.x != 0)
                 unit->state = UNIT_WALKING;
-        }
     }
     if(map->grid[tilex + (tiley) * map->width] == 3 + 2 * TILESET_WIDTH && unit->state != UNIT_DEAD) {
         unit->state = UNIT_DEAD;
         unit->velocity = {0};
+        level->pause = true;
         explode(unit, level);
     }
 
     if((is_ground(map->grid[tilex + (tiley) * map->width])) && unit->velocity.y < 0) {
+        unit->pos.y += 1;
         unit->velocity.y = 0;
+    }
+
+    if(map->grid[tilex + tiley * map->width] == 4 + 3 * TILESET_WIDTH) {
+        //level has been won
+        printf("victory\n");
     }
 
     unit->pos.y += unit->velocity.y;
@@ -248,6 +251,7 @@ void update_unit(Unit* unit, Level* level, Map* map, LevelScene* scene) {
             explode(unit, level);
             unit->state = UNIT_DEAD;
             unit->velocity = {0};
+            level->pause = true;
             break;
         }
     }
@@ -256,81 +260,6 @@ void update_unit(Unit* unit, Level* level, Map* map, LevelScene* scene) {
 static inline
 void add_keypress(Unit* unit, i32 time, i32 key, bool press) {
     unit->keypresses.push_back({time, key, press});
-}
-
-static inline
-void player_input(Unit* player, Level* level) {
-    if(is_key_pressed(KEY_LEFT)) {
-        if(player->state == UNIT_IDLE)
-            player->state = UNIT_WALKING;
-        add_keypress(player, level->timer, KEY_LEFT, true);
-        player->right = false;
-        player->velocity.x = player->slow ? -1 : -2;
-    }
-    if(is_key_released(KEY_LEFT)) {
-        if(player->velocity.x < 0)
-            player->velocity.x = 0;
-        if(player->state == UNIT_WALKING)
-            player->state = UNIT_IDLE;
-        add_keypress(player, level->timer, KEY_LEFT, false);
-    }
-    if(is_key_pressed(KEY_RIGHT)) {
-        if(player->state == UNIT_IDLE)
-            player->state = UNIT_WALKING;
-        add_keypress(player, level->timer, KEY_RIGHT, true);
-        player->right = true;
-        player->velocity.x = player->slow ? 1 : 2;
-    }
-    if(is_key_released(KEY_RIGHT)) {
-        if(player->velocity.x > 0)
-            player->velocity.x = 0;
-        if(player->state == UNIT_WALKING)
-            player->state = UNIT_IDLE;
-        add_keypress(player, level->timer, KEY_RIGHT, false);
-    }
-
-    if(is_key_pressed(KEY_UP) || is_key_pressed(KEY_Z) || is_key_pressed(KEY_SPACE)) {
-        if(player->state != UNIT_JUMPING) {
-            level->units.back().velocity.y = player->slow ? -3 : -5;
-            level->units.back().state = UNIT_JUMPING;
-            add_keypress(player, level->timer, KEY_UP, true);
-        }
-    }
-
-    i32 tilex = (i32)(player->pos.x) / TILE_SIZE;
-    i32 tiley = (i32)(player->pos.y) / TILE_SIZE;
-    if(is_key_pressed(KEY_DOWN)) {
-        if(is_floating_ground(level->map.grid[tilex + (tiley+1) * level->map.width])) {
-            player->pos.y += 14;
-            player->velocity.y = 12;
-            add_keypress(player, level->timer, KEY_DOWN, true);
-        }
-    }
-    if(is_key_pressed(KEY_LEFT_SHIFT)) {
-        player->slow = true;
-            if(player->velocity.x < 0)
-                player->velocity.x = -1;
-            else if(player->velocity.x > 0)
-                player->velocity.x = 1;
-        add_keypress(player, level->timer, KEY_LEFT_SHIFT, true);
-    }
-    if(is_key_released(KEY_LEFT_SHIFT)) {
-        player->slow = false;
-            if(player->velocity.x < 0)
-                player->velocity.x = -2;
-            else if(player->velocity.x > 0)
-                player->velocity.x = 2;
-        add_keypress(player, level->timer, KEY_LEFT_SHIFT, false);
-    }
-    if(is_key_pressed(KEY_C)) {
-        if(player->bombs > 0) {
-            explode(player, level);
-            add_keypress(player, level->timer, KEY_C, true);
-            player->bombs--;
-            player->flytime = 500;
-            //player->state = UNIT_FLYING;
-        }
-    }
 }
 
 static inline
@@ -403,6 +332,56 @@ void ai_input(Unit* curr, Level* level, i32 key, bool press) {
 }
 
 static inline
+void player_input(Unit* player, Level* level) {
+    if(is_key_pressed(KEY_LEFT)) {
+        ai_input(player, level, KEY_LEFT, true);
+        add_keypress(player, level->timer, KEY_LEFT, true);
+    }
+    if(is_key_released(KEY_LEFT)) {
+        ai_input(player, level, KEY_LEFT, false);
+        add_keypress(player, level->timer, KEY_LEFT, false);
+    }
+    if(is_key_pressed(KEY_RIGHT)) {
+        ai_input(player, level, KEY_RIGHT, true);
+        add_keypress(player, level->timer, KEY_RIGHT, true);
+    }
+    if(is_key_released(KEY_RIGHT)) {
+        ai_input(player, level, KEY_RIGHT, false);
+        add_keypress(player, level->timer, KEY_RIGHT, false);
+    }
+
+    if(is_key_pressed(KEY_UP) || is_key_pressed(KEY_Z) || is_key_pressed(KEY_SPACE)) {
+        if(player->state != UNIT_JUMPING) {
+            ai_input(player, level, KEY_UP, true);
+            add_keypress(player, level->timer, KEY_UP, true);
+        }
+    }
+
+    i32 tilex = (i32)(player->pos.x) / TILE_SIZE;
+    i32 tiley = (i32)(player->pos.y) / TILE_SIZE;
+    if(is_key_pressed(KEY_DOWN)) {
+        if(is_floating_ground(level->map.grid[tilex + (tiley+1) * level->map.width])) {
+            ai_input(player, level, KEY_DOWN, true);
+            add_keypress(player, level->timer, KEY_DOWN, true);
+        }
+    }
+    if(is_key_pressed(KEY_LEFT_SHIFT)) {
+        ai_input(player, level, KEY_LEFT_SHIFT, true);
+        add_keypress(player, level->timer, KEY_LEFT_SHIFT, true);
+    }
+    if(is_key_released(KEY_LEFT_SHIFT)) {
+        ai_input(player, level, KEY_LEFT_SHIFT, false);
+        add_keypress(player, level->timer, KEY_LEFT_SHIFT, false);
+    }
+    if(is_key_pressed(KEY_C)) {
+        if(player->bombs > 0) {
+            ai_input(player, level, KEY_C, true);
+            add_keypress(player, level->timer, KEY_C, true);
+        }
+    }
+}
+
+static inline
 vec2 find_start_point(Level* level) {
     for(u32 x = 0; x < level->map.width; ++x) {
         for(u32 y = 0; y < level->map.height; ++y) {
@@ -428,6 +407,8 @@ void reset_level(Level* level, LevelScene* scene) {
         level->units[i].pos = {0};
         level->units[i].velocity = {0};
         level->units[i].force = {0};
+        level->units[i].slow = false;
+        level->units[i].bombs = 1;
         level->units[i].right = false;
         level->units[i].color = random_int(0, 100) > 50 ? COLOR_GREEN : COLOR_YELLOW;
         level->units[i].state = UNIT_IDLE;
@@ -450,7 +431,7 @@ void level(RenderBatch* batch, Level* level, LevelScene* scene) {
     }
 
     Unit* player = &level->units.back();
-    if(player->state == UNIT_DEAD) {
+    if(player->state == UNIT_DEAD && level->pause == false) {
         add_keypress(player, level->timer, KEY_ESCAPE, false);
         reset_level(level, scene);
         if(level->init != NULL)
@@ -465,6 +446,14 @@ void level(RenderBatch* batch, Level* level, LevelScene* scene) {
 
     if(player->pos.x < -level->map.x - 50) {
         player->state = UNIT_DEAD;
+        level->pause = true;
+    }
+
+    if(level->pause) {
+        //draw_text
+        if(get_key_released()) {
+            level->pause = false;
+        }
     }
 
     for(u32 i = 0; i < level->enemies.size(); ++i) {
@@ -510,7 +499,8 @@ void level(RenderBatch* batch, Level* level, LevelScene* scene) {
         }
     }
 
-    player_input(player, level);
+    if(player->state != UNIT_DEAD)
+        player_input(player, level);
 
     for(u32 i = 0; i < level->explosions.size(); ++i) {
         level->explosions[i].scale += 0.1f;
