@@ -22,13 +22,11 @@ bool text_button(RenderBatch* batch, BitmapFont* font, std::string str, i32* yIn
     f32 yPos = *yInitial += (16*2);
     bool collided = colliding({ xPos, yPos, width, height }, { mouse.x, mouse.y });
     if (collided) {
-        str[0] = '>';
-        str[1] = ' ';
-        draw_text(batch, font, str.c_str(), xPos, yPos);
+        str[0] = 'A'-3;
+        draw_text(batch, font, str.c_str(), xPos+5, yPos);
     }
     else {
         str[0] = ' ';
-        str[1] = ' ';
         draw_text(batch, font, str.c_str(), xPos, yPos);
     }
 
@@ -41,16 +39,16 @@ void title_screen(RenderBatch* batch, BitmapFont* font, MainState* mainstate, ve
 
     i32 yInitial = 160;
 
-    if(text_button(batch, font, "  PLAY GAME", &yInitial, mouse)) {
+    if(text_button(batch, font, " PLAY", &yInitial, mouse)) {
         *mainstate = GOTO_GAME;
     }
-    if(text_button(batch, font, "  OPTIONS", &yInitial, mouse)) {
+    if(text_button(batch, font, " OPTIONS", &yInitial, mouse)) {
 
     }
-    if(text_button(batch, font, "  CREDITS", &yInitial, mouse)) {
+    if(text_button(batch, font, " CREDITS", &yInitial, mouse)) {
 
     }
-    if(text_button(batch, font, "  QUIT", &yInitial, mouse)) {
+    if(text_button(batch, font, " QUIT", &yInitial, mouse)) {
         *mainstate = MAIN_EXIT;
     }
 }
@@ -77,14 +75,34 @@ int main() {
 
     LevelScene levelscene = {0};
     levelscene = load_level_scene();
-    Level game = {0};
-    game.map = load_map("data/map.txt");
-    game.scroll = SCROLL_RIGHT;
-    game.map.y = -30;
-    game.init = stage1;
+    Level levels[10] = {0};
+    levels[0].map = load_map("data/map2.txt");
+    levels[0].init = stage0;
+    levels[0].scroll = SCROLL_NONE;
+    
+    levels[1].map = load_map("data/map1.txt");
+    levels[1].init = stage1;
+    levels[1].scroll = SCROLL_RIGHT;
+
+    levels[2].map = load_map("data/map3.txt");
+    levels[2].scroll = SCROLL_RIGHT;
+    levels[2].map.y = -30;
+    levels[2].init = stage2;
+
+    levels[3].map = load_map("data/map4.txt");
+    levels[3].scroll = SCROLL_DOWN;
+    levels[3].map.y = -1000;
+    levels[3].init = stage3;
+
+    levels[9].map=load_map("data/map1.txt");
+    levels[9].scroll = SCROLL_RIGHT;
+    levels[9].map.y = -30;
+    levels[9].init = test_stage;
+
+    i32 currlevel = 0;
 
     Editor edit = {0};
-    edit.map = create_map(120, 25);
+    edit.map = create_map(44, 125);
 
     while(window_open()) {
         Rect view = fit_aspect_ratio(1.777777777777778);
@@ -99,7 +117,7 @@ int main() {
                 title_screen(batch, &font, &state, mouse);
             }
             if(state == MAIN_GAME) {
-                level(batch, &game, &levelscene);
+                level(batch, &levels[currlevel], &levelscene, &currlevel);
                 //editor(batch, &edit, &levelscene, mouse);
             }
             if(state == GOTO_GAME) {

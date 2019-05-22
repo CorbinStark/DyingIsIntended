@@ -60,7 +60,8 @@ enum ScrollDir {
     SCROLL_LEFT,
     SCROLL_RIGHT,
     SCROLL_UP,
-    SCROLL_DOWN
+    SCROLL_DOWN,
+    SCROLL_NONE
 };
 
 struct LevelScene;
@@ -68,6 +69,7 @@ struct LevelScene;
 struct Level {
     Map map;
     bool pause;
+    bool victory;
     ScrollDir scroll;
     std::vector<Enemy> enemies;
     std::vector<Unit> units;
@@ -81,6 +83,7 @@ struct Level {
 struct LevelScene {
     Texture bigball;
     Texture ball;
+    Texture redball;
     Texture bone;
     Texture candle;
     Texture skull;
@@ -98,6 +101,7 @@ LevelScene load_level_scene() {
 
     scene.bigball = load_texture("data/art/bigball.png", GL_NEAREST);
     scene.ball = load_texture("data/art/ball.png", GL_NEAREST);
+    scene.redball = load_texture("data/art/ball_red.png", GL_NEAREST);
     scene.skull = load_texture("data/art/skull.png", GL_NEAREST);
     scene.bone = load_texture("data/art/bone.png", GL_NEAREST);
     scene.candle = load_texture("data/art/candle.png", GL_NEAREST);
@@ -205,15 +209,9 @@ void update_unit(Unit* unit, Level* level, Map* map, LevelScene* scene) {
     bool leftcollide = unit->velocity.x > 0 && is_ground(map->grid[(tilex+1) + tiley * map->width]);
     bool rightcollide = unit->velocity.x < 0 && is_ground(map->grid[(tilex) + tiley * map->width]);
 
-    if(unit->state != UNIT_DEAD) {
-        if(leftcollide) {
-            unit->pos.x = (tilex * TILE_SIZE);
-        }
-        else if(rightcollide) {
-            unit->pos.x = ((tilex+1) * TILE_SIZE);
-        }
-        else
-            unit->pos.x += unit->velocity.x;
+    if((is_ground(map->grid[tilex + (tiley) * map->width]) || is_ground(map->grid[tilex2 + (tiley) * map->width])) && unit->velocity.y < 0) {
+        unit->pos.y += 1;
+        unit->velocity.y = 0;
     }
 
     if((is_ground(map->grid[tilex + (tiley+1) * map->width]) || is_ground(map->grid[tilex2 + (tiley+1) * map->width]) || is_floating_ground(map->grid[tilex + (tiley+1) * map->width]) || is_floating_ground(map->grid[(tilex+1) + (tiley+1) * map->width])) && unit->velocity.y > 0) {
@@ -232,14 +230,22 @@ void update_unit(Unit* unit, Level* level, Map* map, LevelScene* scene) {
         explode(unit, level);
     }
 
-    if((is_ground(map->grid[tilex + (tiley) * map->width])) && unit->velocity.y < 0) {
-        unit->pos.y += 1;
-        unit->velocity.y = 0;
+    if(unit->state != UNIT_DEAD) {
+        if(leftcollide) {
+            unit->pos.x = (tilex * TILE_SIZE);
+        }
+        else if(rightcollide) {
+            unit->pos.x = ((tilex+1) * TILE_SIZE);
+        }
+        else
+            unit->pos.x += unit->velocity.x;
     }
 
-    if(map->grid[tilex + tiley * map->width] == 4 + 3 * TILESET_WIDTH) {
+    if(map->grid[tilex + tiley * map->width] == 4 + 2 * TILESET_WIDTH) {
         //level has been won
-        printf("victory\n");
+        level->pause = true;
+        level->victory = true;
+        printf("victory!\n");
     }
 
     unit->pos.y += unit->velocity.y;
@@ -420,7 +426,7 @@ void reset_level(Level* level, LevelScene* scene) {
 }
 
 static inline
-void level(RenderBatch* batch, Level* level, LevelScene* scene) {
+void level(RenderBatch* batch, Level* level, LevelScene* scene, i32* currlevel) {
     draw_map(batch, &level->map, scene->tileset);
     level->timer++;
 
@@ -443,8 +449,10 @@ void level(RenderBatch* batch, Level* level, LevelScene* scene) {
         level->map.x -= 0.25f;
     if(level->scroll == SCROLL_LEFT)
         level->map.x += 0.25f;
+    if(level->scroll == SCROLL_DOWN)
+        level->map.y -= 0.25f;
 
-    if(player->pos.x < -level->map.x - 50) {
+    if(player->pos.x < -level->map.x - 50 || player->pos.y < -level->map.y - 50 || player->pos.y > -level->map.y + get_virtual_height()-0) {
         player->state = UNIT_DEAD;
         level->pause = true;
     }
@@ -453,6 +461,10 @@ void level(RenderBatch* batch, Level* level, LevelScene* scene) {
         //draw_text
         if(get_key_released()) {
             level->pause = false;
+            if(level->victory) {
+                printf("next level");
+                *currlevel = *currlevel + 1;
+            }
         }
     }
 
@@ -481,8 +493,8 @@ void level(RenderBatch* batch, Level* level, LevelScene* scene) {
                     f32 angle = curr->emitter.angle;
                     for(u32 j = 0; j < curr->emitter.numBullets; ++j) {
                         Bullet bullet = {0};
-                        bullet.pos = {curr->pos.x + (curr->img.width/2), curr->pos.y + (curr->img.height/2)};
                         bullet.img = curr->bulletimg;
+                        bullet.pos = {curr->pos.x + (curr->img.width/2) - (bullet.img.width/2), curr->pos.y + (curr->img.height/2) - (bullet.img.height/2)};
                         bullet.f = curr->emitter.f;
                         bullet.angle = angle;
                         bullet.speed = curr->emitter.speed;

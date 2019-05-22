@@ -15,7 +15,7 @@ const i32 TILE_SIZE = 16;
 const i32 TILESET_WIDTH = 5;
 const i32 SCROLL_SPEED = 4;
 
-const f32 HITBOX = 5;
+const f32 HITBOX = 6;
 const f32 GRAVITY = 0.25;
 const f32 SLOW_GRAVITY = 0.25/2;
 const f32 MAX_SPEED = 2;

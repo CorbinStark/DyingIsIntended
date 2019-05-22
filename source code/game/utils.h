@@ -74,6 +74,11 @@ BitmapFont load_1bit_font() {
     unsigned char* image = SOIL_load_image("data/art/font.png", &w, &h, 0, SOIL_LOAD_RGBA);
     i32 x = 0;
     for(u16 i = 0; i < 13; ++i) {
+        font.chars[i+65-13] = get_sub_image(image, w, x, 0, 16, 16, GL_NEAREST);
+        x += 17;
+    }
+    x = 0;
+    for(u16 i = 0; i < 13; ++i) {
         font.chars[i+65] = get_sub_image(image, w, x, 16, 16, 16, GL_NEAREST);
         x += 17;
     }
