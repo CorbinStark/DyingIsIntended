@@ -355,7 +355,7 @@ void stage3(Level* level, LevelScene* scene) {
     populate_enemy(&enemy, scene->fairy, 4000, {420, 1650}, {70, 299}, 1400, scene->ball);
     enemy.emitter = {10, 360.0f/10.0f, 0, 100, 4.5f, spiral};
     level->enemies.push_back(enemy);
-
+    
     populate_enemy(&enemy, scene->skelly, 4200, {350, 1750}, {-500, 500}, 1200, scene->ball);
     enemy.emitter = {20, 360.0f/20.0f, 0, 90, 0.20f, expanding_shield};
     level->enemies.push_back(enemy);
@@ -363,6 +363,69 @@ void stage3(Level* level, LevelScene* scene) {
     level->enemies.push_back(enemy);
     populate_enemy(&enemy, scene->skull, 4200, {350, 1750}, {-500, 500}, 1600, scene->bone);
     enemy.emitter = {20, 360.0f/20.0f, 0, 190, 1.20f, spiral};
+    level->enemies.push_back(enemy);
+}
+
+static inline
+void stage4(Level* level, LevelScene* scene) {
+    Enemy enemy = {0};
+    
+    populate_enemy(&enemy, scene->angel, 450, {350, 50}, {200, -110}, 1200, scene->ball);
+    enemy.emitter = {85, 360.0f/85.0f, 0, 80, 0.6f, spread};
+    level->enemies.push_back(enemy);
+    populate_enemy(&enemy, scene->angel, 450, {350, 50}, {200, -110}, 1200, scene->bone);
+    enemy.emitter = {5, 360.0f/5.0f, 0, 30, 1.6f, twirl};
+    level->enemies.push_back(enemy);
+    enemy.emitter = {15, 360.0f/15.0f, 0, 30, 1.6f, twirl};
+    level->enemies.push_back(enemy);
+    enemy.bulletimg = scene->bigball;
+    enemy.emitter = {15, 360.0f/15.0f, 0, 130, 0.8f, expanding_shield};
+    level->enemies.push_back(enemy);
+    
+    populate_enemy(&enemy, scene->fairy, 450+1200+100, {100, 100}, {200, -110}, 400, scene->ball);
+    enemy.emitter = {25, 360.0f/25.0f, 0, 10, 0.9f, spiral};
+    level->enemies.push_back(enemy);
+    enemy.dest = {200, 100};
+    level->enemies.push_back(enemy);
+    enemy.dest = {300, 100};
+    level->enemies.push_back(enemy);
+    enemy.dest = {400, 100};
+    level->enemies.push_back(enemy);
+    enemy.dest = {500, 100};
+    level->enemies.push_back(enemy);
+    
+    populate_enemy(&enemy, scene->fairy, 450+1200+1000, {100, 100}, {200, -110}, 1000, scene->bone);
+    enemy.emitter = {25, 360.0f/25.0f, 0, 75, 1.0f, spread_rotate};
+    level->enemies.push_back(enemy);
+    populate_enemy(&enemy, scene->angel, 450+1200+900, {350, 50}, {200, -110}, 1200, scene->ball);
+    enemy.emitter = {25, 360.0f/85.0f, 0, 80, 1.6f, spiral};
+    level->enemies.push_back(enemy);
+    enemy.emitter = {35, 360.0f/35.0f, 0, 100, 2.0f, spread};
+    level->enemies.push_back(enemy);
+
+    populate_enemy(&enemy, scene->fairy, 450+1200+1000+1000, {550, -20}, {590, 0}, 1800, scene->bigball);
+    enemy.emitter = {20, 360.0f/20, 0, 80, 1.0f, spread};
+    level->enemies.push_back(enemy);
+
+    populate_enemy(&enemy, scene->skull, 450+1200+1000+1000, {550, -20}, {590, 0}, 1800, scene->bone);
+    enemy.emitter = {20, 360.0f/20, 0, 80, 1.0f, twirl};
+    level->enemies.push_back(enemy);
+    populate_enemy(&enemy, scene->fairy, 450+1200+1000+1000, {50, -20}, {590, 0}, 1800, scene->bigball);
+    enemy.emitter = {20, 360.0f/20, 0, 80, 1.0f, spread};
+    level->enemies.push_back(enemy);
+
+    populate_enemy(&enemy, scene->skull, 450+1200+1000+1200, {50, -20}, {590, 0}, 1800, scene->bone);
+    enemy.emitter = {20, 360.0f/20, 0, 80, 1.0f, twirl};
+    level->enemies.push_back(enemy);
+    populate_enemy(&enemy, scene->angel, 450+1200+1000+1200, {350, 50}, {200, -110}, 1800, scene->ball);
+    enemy.emitter = {35, 360.0f/35.0f, 0, 80, 1.0f, spread};
+    level->enemies.push_back(enemy);
+    enemy.bulletimg = scene->bone;
+    enemy.emitter = {5, 360.0f/5.0f, 0, 30, 1.6f, twirl};
+    level->enemies.push_back(enemy);
+
+    enemy = {0};
+    enemy.spawn = 450+1200+1000+1200+2600;
     level->enemies.push_back(enemy);
 }
 

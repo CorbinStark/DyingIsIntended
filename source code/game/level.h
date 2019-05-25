@@ -93,6 +93,9 @@ struct LevelScene {
     Texture skelly;
     Texture explosion;
     Texture heart;
+    Texture angel;
+
+    Sound bullet;
 };
 
 static inline
@@ -110,8 +113,11 @@ LevelScene load_level_scene() {
     scene.skelly = load_texture("data/art/skelly.png", GL_NEAREST);
     scene.explosion = load_texture("data/art/explosion.png", GL_NEAREST);
     scene.heart = load_texture("data/art/heart.png", GL_NEAREST);
+    scene.angel = load_texture("data/art/angel.png", GL_NEAREST);
 
     scene.unit = load_texture("data/art/unit.png", GL_NEAREST);
+
+    scene.bullet = load_sound("data/sound/bullet.wav");
 
     return scene;
 }
@@ -193,6 +199,9 @@ void explode(Unit* unit, Level* level) {
 
 static inline
 void update_unit(Unit* unit, Level* level, Map* map, LevelScene* scene) {
+    if(unit->falltime > 0)
+        unit->falltime--;
+
     if(unit->slow)
         unit->velocity.y += SLOW_GRAVITY;
     else
@@ -214,14 +223,18 @@ void update_unit(Unit* unit, Level* level, Map* map, LevelScene* scene) {
         unit->velocity.y = 0;
     }
 
-    if((is_ground(map->grid[tilex + (tiley+1) * map->width]) || is_ground(map->grid[tilex2 + (tiley+1) * map->width]) || is_floating_ground(map->grid[tilex + (tiley+1) * map->width]) || is_floating_ground(map->grid[(tilex+1) + (tiley+1) * map->width])) && unit->velocity.y > 0) {
-            if(unit->state == UNIT_JUMPING)
-                unit->state = UNIT_IDLE;
-            unit->pos.y = (tiley * TILE_SIZE);
-            unit->velocity.y = 0;
+    bool fallingThrough = false;
+    if(unit->falltime > 0) {
+        fallingThrough = true;
+    }
+    if((is_ground(map->grid[tilex + (tiley+1) * map->width]) || is_ground(map->grid[tilex2 + (tiley+1) * map->width]) || is_floating_ground(map->grid[tilex + (tiley+1) * map->width]) || is_floating_ground(map->grid[(tilex+1) + (tiley+1) * map->width])) && unit->velocity.y > 0 && !fallingThrough) {
+        if(unit->state == UNIT_JUMPING)
+            unit->state = UNIT_IDLE;
+        unit->pos.y = (tiley * TILE_SIZE);
+        unit->velocity.y = 0;
 
-            if(unit->velocity.x != 0)
-                unit->state = UNIT_WALKING;
+        if(unit->velocity.x != 0)
+            unit->state = UNIT_WALKING;
     }
     if(map->grid[tilex + (tiley) * map->width] == 3 + 2 * TILESET_WIDTH && unit->state != UNIT_DEAD) {
         unit->state = UNIT_DEAD;
@@ -245,7 +258,6 @@ void update_unit(Unit* unit, Level* level, Map* map, LevelScene* scene) {
         //level has been won
         level->pause = true;
         level->victory = true;
-        printf("victory!\n");
     }
 
     unit->pos.y += unit->velocity.y;
@@ -306,8 +318,9 @@ void ai_input(Unit* curr, Level* level, i32 key, bool press) {
         }
     }
     if(key == KEY_DOWN) {
-        curr->pos.y += 14;
-        curr->velocity.y = 12;
+        curr->falltime = 15;
+        if(curr->slow)
+            curr->falltime = 20;
     }
     if(key == KEY_LEFT_SHIFT) {
         if(press) {
@@ -366,7 +379,7 @@ void player_input(Unit* player, Level* level) {
     i32 tilex = (i32)(player->pos.x) / TILE_SIZE;
     i32 tiley = (i32)(player->pos.y) / TILE_SIZE;
     if(is_key_pressed(KEY_DOWN)) {
-        if(is_floating_ground(level->map.grid[tilex + (tiley+1) * level->map.width])) {
+        if(is_floating_ground(level->map.grid[(tilex+1) + (tiley+1) * level->map.width]) || is_floating_ground(level->map.grid[tilex + (tiley+1) * level->map.width])) {
             ai_input(player, level, KEY_DOWN, true);
             add_keypress(player, level->timer, KEY_DOWN, true);
         }
@@ -462,7 +475,6 @@ void level(RenderBatch* batch, Level* level, LevelScene* scene, i32* currlevel) 
         if(get_key_released()) {
             level->pause = false;
             if(level->victory) {
-                printf("next level");
                 *currlevel = *currlevel + 1;
             }
         }
@@ -474,6 +486,8 @@ void level(RenderBatch* batch, Level* level, LevelScene* scene, i32* currlevel) 
 
         if(level->timer == curr->spawn) {
             curr->active = true;
+            if(i == level->enemies.size() - 1 && curr->img.ID == 0 && player->state != UNIT_DEAD)
+                *currlevel = *currlevel + 1;
         }
         if(curr->active) {
             if(curr->pos.y < -180) {
@@ -491,6 +505,7 @@ void level(RenderBatch* batch, Level* level, LevelScene* scene, i32* currlevel) 
             else {
                 if(level->timer % curr->emitter.shootdelay == 0) {
                     f32 angle = curr->emitter.angle;
+                    play_sound(scene->bullet);
                     for(u32 j = 0; j < curr->emitter.numBullets; ++j) {
                         Bullet bullet = {0};
                         bullet.img = curr->bulletimg;

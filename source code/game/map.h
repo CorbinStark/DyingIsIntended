@@ -54,6 +54,7 @@ struct Unit {
     UnitState state;
     UnitColor color;
     i32 flytime;
+    i32 falltime;
     i32 bombs;
     bool right;
     bool slow;

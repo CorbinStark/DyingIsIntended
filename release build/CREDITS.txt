@@ -1,0 +1,44 @@
+Title:
+    1-Bit Pack
+
+Author:
+    Kenney
+
+URL:
+    https://kenney.nl/assets/bit-pack
+
+License(s):
+    * CC0 ( http://creativecommons.org/publicdomain/zero/1.0/legalcode )
+
+File(s):
+    * Blackmoor Tides Collection.zip
+
+----------------------------------------
+
+Title:
+    8-Bit Battle Loop
+
+Author:
+    Wolfgang
+
+URL:
+    https://opengameart.org/content/8-bit-battle-loop
+
+License(s):
+    * CC0 ( http://creativecommons.org/publicdomain/zero/1.0/legalcode )
+
+----------------------------------------
+
+Title:
+    Spooky Dungeon
+
+Author:
+    You're Perfect Studio
+
+URL:
+    https://opengameart.org/content/spooky-dungeon
+
+License(s):
+    * CC0 ( http://creativecommons.org/publicdomain/zero/1.0/legalcode )
+
+----------------------------------------

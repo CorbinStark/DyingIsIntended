@@ -11,6 +11,9 @@ enum MainState {
     GOTO_GAME,
     MAIN_GAME,
 
+    MAIN_CONTROLS,
+    MAIN_CREDITS,
+
     MAIN_EXIT
 };
 
@@ -42,11 +45,11 @@ void title_screen(RenderBatch* batch, BitmapFont* font, MainState* mainstate, ve
     if(text_button(batch, font, " PLAY", &yInitial, mouse)) {
         *mainstate = GOTO_GAME;
     }
-    if(text_button(batch, font, " OPTIONS", &yInitial, mouse)) {
-
+    if(text_button(batch, font, " CONTROLS", &yInitial, mouse)) {
+        *mainstate = MAIN_CONTROLS;
     }
     if(text_button(batch, font, " CREDITS", &yInitial, mouse)) {
-
+        *mainstate = MAIN_CREDITS;
     }
     if(text_button(batch, font, " QUIT", &yInitial, mouse)) {
         *mainstate = MAIN_EXIT;
@@ -54,7 +57,7 @@ void title_screen(RenderBatch* batch, BitmapFont* font, MainState* mainstate, ve
 }
 
 int main() {
-    printf("\n/////////////////////////////////\nPROGRAM STARTING\n/////////////////////////////////\n\n");
+    printf("\n/////////////////////////////////\n        PROGRAM STARTING\n/////////////////////////////////\n\n");
     init_window(640, 360, "Dying Is Intended", false, true, true);
     init_audio();
     set_fps_cap(60);
@@ -62,7 +65,7 @@ int main() {
     set_vsync(true);
     set_mouse_state(MOUSE_HIDDEN);
 
-    RenderBatch * batch = &create_batch();
+    RenderBatch* batch = &create_batch();
     Shader basic = load_default_shader_2D();
     MainState state = GOTO_TITLE;
 
@@ -94,6 +97,12 @@ int main() {
     levels[3].map.y = -1000;
     levels[3].init = stage3;
 
+    levels[4].map = load_map("data/map5.txt");
+    levels[4].scroll = SCROLL_NONE;
+    levels[4].map.x = -175;
+    levels[4].map.y = 0;
+    levels[4].init = stage4;
+
     levels[9].map=load_map("data/map1.txt");
     levels[9].scroll = SCROLL_RIGHT;
     levels[9].map.y = -30;
@@ -102,7 +111,12 @@ int main() {
     i32 currlevel = 0;
 
     Editor edit = {0};
-    edit.map = create_map(44, 125);
+    edit.map = create_map(44, 25);
+
+    Sound menu = load_sound("data/sound/Memoraphile - Spooky Dungeon.wav");
+    Sound battle = load_sound("data/sound/8BitBattleLoop.wav");
+    set_sound_looping(menu, true);
+    set_sound_looping(battle, true);
 
     while(window_open()) {
         Rect view = fit_aspect_ratio(1.777777777777778);
@@ -116,14 +130,38 @@ int main() {
             if(state == MAIN_TITLE) {
                 title_screen(batch, &font, &state, mouse);
             }
+            if(state == MAIN_CONTROLS) {
+                i32 starty = 130;
+                draw_text(batch, &font, "Z OR SPACE - JUMP", 10, starty + (17*0));
+                draw_text(batch, &font, "C -          BOMB", 10, starty + (17*1));
+                draw_text(batch, &font, "ARROW KEYS - MOVE", 10, starty + (17*2));
+                draw_text(batch, &font, "DOWN ARROW - FALL THROUGH PLATFORM", 10, starty + (17*3));
+                draw_text(batch, &font, "SHIFT -      SLOW DOWN", 10, starty + (17*4));
+                if(get_key_pressed() != 0) state = MAIN_TITLE;
+            }
+            if(state == MAIN_CREDITS) {
+                draw_text(batch, &font, "FOLLOWING WORKS WERE USED", 10, 10);
+                draw_text(batch, &font, "ONE-BIT PACK    (MODIFIED)", 10, 70);
+                draw_text(batch, &font, "EIGHT-BIT BATTLE LOOP", 10, 70+30);
+                draw_text(batch, &font, "SPOOKY DUNGEON", 10, 40+90);
+                if(get_key_pressed() != 0) state = MAIN_TITLE;
+            }
             if(state == MAIN_GAME) {
-                level(batch, &levels[currlevel], &levelscene, &currlevel);
+                if(currlevel == 5) {
+                    draw_text(batch, &font, "YOU HAVE ESCAPED HELL.", 100, 100);
+                    draw_text(batch, &font, "CONGRATULATIONS, MORTAL FAIRY.", 120, 200);
+                } else
+                    level(batch, &levels[currlevel], &levelscene, &currlevel);
                 //editor(batch, &edit, &levelscene, mouse);
             }
             if(state == GOTO_GAME) {
+                play_sound(battle);
+                stop_sound(menu);
                 state = MAIN_GAME;
             }
             if(state == GOTO_TITLE) {
+                stop_sound(battle);
+                play_sound(menu);
                 state = MAIN_TITLE;
             }
             if(state == MAIN_EXIT) 
