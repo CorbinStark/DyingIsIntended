@@ -69,6 +69,7 @@ struct LevelScene;
 struct Level {
     Map map;
     bool pause;
+    bool dead;
     bool victory;
     ScrollDir scroll;
     std::vector<Enemy> enemies;
@@ -94,6 +95,7 @@ struct LevelScene {
     Texture explosion;
     Texture heart;
     Texture angel;
+    BitmapFont font;
 
     Sound bullet;
 };
@@ -118,6 +120,7 @@ LevelScene load_level_scene() {
     scene.unit = load_texture("data/art/unit.png", GL_NEAREST);
 
     scene.bullet = load_sound("data/sound/bullet.wav");
+    scene.font = load_1bit_font();
 
     return scene;
 }
@@ -239,7 +242,8 @@ void update_unit(Unit* unit, Level* level, Map* map, LevelScene* scene) {
     if(map->grid[tilex + (tiley) * map->width] == 3 + 2 * TILESET_WIDTH && unit->state != UNIT_DEAD) {
         unit->state = UNIT_DEAD;
         unit->velocity = {0};
-        level->pause = true;
+        if(unit == &level->units.back())
+            level->pause = true;
         explode(unit, level);
     }
 
@@ -254,11 +258,6 @@ void update_unit(Unit* unit, Level* level, Map* map, LevelScene* scene) {
             unit->pos.x += unit->velocity.x;
     }
 
-    if(map->grid[tilex + tiley * map->width] == 4 + 2 * TILESET_WIDTH) {
-        //level has been won
-        level->pause = true;
-        level->victory = true;
-    }
 
     unit->pos.y += unit->velocity.y;
 
@@ -269,7 +268,8 @@ void update_unit(Unit* unit, Level* level, Map* map, LevelScene* scene) {
             explode(unit, level);
             unit->state = UNIT_DEAD;
             unit->velocity = {0};
-            level->pause = true;
+            if(unit == &level->units.back())
+                level->pause = true;
             break;
         }
     }
@@ -440,16 +440,104 @@ void reset_level(Level* level, LevelScene* scene) {
 
 static inline
 void level(RenderBatch* batch, Level* level, LevelScene* scene, i32* currlevel) {
-    draw_map(batch, &level->map, scene->tileset);
-    level->timer++;
-
     if(level->units.size() == 0) {
         reset_level(level, scene);
         if(level->init != NULL)
             level->init(level, scene);
     }
 
+    draw_map(batch, &level->map, scene->tileset);
     Unit* player = &level->units.back();
+
+    if(is_key_released(KEY_P) || is_key_released(KEY_ESCAPE)) {
+        level->pause = true;
+        return;
+    }
+    if(level->pause) {
+        for(u32 i = 0; i < level->enemies.size(); ++i) {
+            Enemy* curr = &level->enemies[i];
+            draw_texture(batch, curr->img, (i32)curr->pos.x + level->map.x, (i32)curr->pos.y + level->map.y);
+        }
+        for(u32 i = 0; i < level->explosions.size(); ++i) {
+            level->explosions[i].scale += 0.1f;
+            scene->explosion.width *= level->explosions[i].scale;
+            scene->explosion.height *= level->explosions[i].scale;
+            draw_texture(batch, scene->explosion, level->explosions[i].pos.x + (TILE_SIZE/2) - ((scene->explosion.width)/2) + level->map.x, level->explosions[i].pos.y + (TILE_SIZE/2) - ((scene->explosion.height)/2) + level->map.y, {1, 1, 1, 1-(level->explosions[i].scale/3)});
+            scene->explosion.width = 64;
+            scene->explosion.height = 64;
+
+            if(level->explosions[i].scale >= 3) {
+                level->explosions.erase(level->explosions.begin() + i);
+                i--;
+                continue;
+            }
+        }
+        for(u32 i = 0; i < level->numBullets; ++i) {
+            Bullet* curr = &level->bullets[i];
+            draw_texture(batch, curr->img, curr->pos.x + level->map.x, curr->pos.y + level->map.y);
+            if(curr->parent->active && curr->f != NULL)
+                curr->f(curr, &curr->parent->emitter, i);
+            if(curr->pos.x < -20 || curr->pos.y < -20 || curr->pos.x > level->map.width * TILE_SIZE || curr->pos.y > level->map.height * TILE_SIZE) {
+                //swap the last bullet with this one then remove the last
+                level->bullets[i] = level->bullets[level->numBullets-1];
+                level->numBullets--;
+                i--;
+            }
+        }
+        if(player->state == UNIT_DEAD) {
+            draw_text(batch, &scene->font, "YOU DIED", 300, 120);
+            draw_text(batch, &scene->font, "PRESS E TO CONTINUE", 200, 160);
+            //draw_text
+            if(is_key_released(KEY_E)) {
+                level->pause = false;
+            }
+            if(is_key_released(KEY_R)) {
+                level->pause = false;
+                add_keypress(player, level->timer, KEY_ESCAPE, false);
+                reset_level(level, scene);
+                if(level->init != NULL)
+                    level->init(level, scene);
+                return;
+            }
+
+        }
+        else if(level->victory) {
+            draw_text(batch, &scene->font, "VICTORY", 300, 120);
+            draw_text(batch, &scene->font, "PRESS E TO CONTINUE", 200, 160);
+
+            if(is_key_released(KEY_E)) {
+                level->pause = false;
+                *currlevel = *currlevel + 1;
+            }
+        } else {
+            draw_text(batch, &scene->font, "PAUSED", 300, 120);
+            draw_text(batch, &scene->font, "PRESS R TO SUICIDE", 200, 160);
+            draw_text(batch, &scene->font, "PRESS E TO CONTINUE", 200, 190);
+            draw_text(batch, &scene->font, "PRESS M TO MUTE SOUNDS", 150, 220);
+            draw_text(batch, &scene->font, "PRESS N TO UNMUTE SOUNDS", 140, 250);
+            //draw_text
+            if(is_key_released(KEY_M)) {
+                set_master_volume(0);
+            }
+            if(is_key_released(KEY_N)) {
+                set_master_volume(110);
+            }
+            if(is_key_released(KEY_E)) {
+                level->pause = false;
+            }
+            if(is_key_released(KEY_R)) {
+                level->pause = false;
+                add_keypress(player, level->timer, KEY_ESCAPE, false);
+                reset_level(level, scene);
+                if(level->init != NULL)
+                    level->init(level, scene);
+                return;
+            }
+        }
+    } else {
+
+    level->timer++;
+
     if(player->state == UNIT_DEAD && level->pause == false) {
         add_keypress(player, level->timer, KEY_ESCAPE, false);
         reset_level(level, scene);
@@ -470,14 +558,12 @@ void level(RenderBatch* batch, Level* level, LevelScene* scene, i32* currlevel) 
         level->pause = true;
     }
 
-    if(level->pause) {
-        //draw_text
-        if(get_key_released()) {
-            level->pause = false;
-            if(level->victory) {
-                *currlevel = *currlevel + 1;
-            }
-        }
+    i32 tilex = (i32)(player->pos.x) / TILE_SIZE;
+    i32 tiley = (i32)(player->pos.y + player->velocity.y) / TILE_SIZE;
+    if(level->map.grid[tilex + tiley * level->map.width] == 4 + 2 * TILESET_WIDTH) {
+        //level has been won
+        level->pause = true;
+        level->victory = true;
     }
 
     for(u32 i = 0; i < level->enemies.size(); ++i) {
@@ -575,6 +661,7 @@ void level(RenderBatch* batch, Level* level, LevelScene* scene, i32* currlevel) 
             level->numBullets--;
             i--;
         }
+    }
     }
 }
 

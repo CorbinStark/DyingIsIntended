@@ -4,6 +4,8 @@
 #include "level.h"
 #include "stages.h"
 
+#pragma comment(linker, "/SUBSYSTEM:windows /ENTRY:mainCRTStartup")
+
 enum MainState {
     GOTO_TITLE,
     MAIN_TITLE,
@@ -133,10 +135,12 @@ int main() {
             if(state == MAIN_CONTROLS) {
                 i32 starty = 130;
                 draw_text(batch, &font, "Z OR SPACE - JUMP", 10, starty + (17*0));
-                draw_text(batch, &font, "C -          BOMB", 10, starty + (17*1));
+                draw_text(batch, &font, "C          - BOMB", 10, starty + (17*1));
                 draw_text(batch, &font, "ARROW KEYS - MOVE", 10, starty + (17*2));
                 draw_text(batch, &font, "DOWN ARROW - FALL THROUGH PLATFORM", 10, starty + (17*3));
-                draw_text(batch, &font, "SHIFT -      SLOW DOWN", 10, starty + (17*4));
+                draw_text(batch, &font, "SHIFT      - SLOW DOWN", 10, starty + (17*4));
+                draw_text(batch, &font, "P OR ESCAPE  PAUSE", 10, starty + (17*5));
+                draw_text(batch, &font, "ANY KEY      EXIT THIS MENU", 10, starty + (17*6));
                 if(get_key_pressed() != 0) state = MAIN_TITLE;
             }
             if(state == MAIN_CREDITS) {
